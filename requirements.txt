@@ -1,5 +1,4 @@
 Flask
 fpdf
 google-generativeai
-tavily
 vercel-wsgi
