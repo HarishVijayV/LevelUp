@@ -4,18 +4,23 @@ import json
 from fpdf import FPDF
 import google.generativeai as genai
 from tavily import TavilyClient
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Initialize Flask app and set a secret key for session storage
 app = Flask(__name__)
-app.secret_key = 'your-very-secret-key'
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
 
 # Initialize Tavily client with API key
-api_key = "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"
-client = TavilyClient(api_key=api_key)
+client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
 # Configure Gemini (Google Generative AI) API key and model
-genai.configure(api_key="AIzaSyD5OddKQ4_3ynfymwv2chepY02ZDaGL6cs")
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 gemini_model = genai.GenerativeModel("gemini-1.5-flash")
+
 
 # Stub function for Microsoft 53 model summary (replace with an actual API call if available)
 def generate_summary(job):
@@ -39,7 +44,8 @@ class PDF(FPDF):
         # Position at 15 mm from bottom
         self.set_y(-15)
         self.set_font('Arial', 'I', 10)
-        self.cell(0, 10, "Made with ❤️ by LevelUp", 0, 0, 'C')
+        # Replace the emoji with plain text to avoid Unicode issues
+        self.cell(0, 10, "Made with love by LevelUp", 0, 0, 'C')
 
 # HTML template with enhanced CSS styling, a loading overlay, and a footer
 TEMPLATE = '''
@@ -51,7 +57,7 @@ TEMPLATE = '''
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* Background styling (plain colors for this example; replace URL with a GIF URL if desired) */
+        /* Background styling */
         body {
             font-family: 'Arial', sans-serif;
             background: linear-gradient(135deg, #ffe6e6, #fff5e6);
@@ -59,7 +65,7 @@ TEMPLATE = '''
             padding: 0;
             color: #333;
         }
-        /* Container for main content with a white background */
+        /* Container styling */
         .container {
             display: flex;
             flex-wrap: wrap;
@@ -319,15 +325,21 @@ def download_jobs():
     # Create a PDF using our custom PDF class
     pdf = PDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    
+    # Use built-in "Arial" font (Latin-1)
+    pdf.set_font("Arial", "", 12)
     
     for job in job_suggestions:
+        # Process text to replace unsupported Unicode characters
+        safe_title = job.get('title', 'No Title').encode('latin-1', 'replace').decode('latin-1')
+        safe_summary = job.get('summary', '').encode('latin-1', 'replace').decode('latin-1')
+        
         # Job Title
         pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, job.get('title', 'No Title'), ln=True)
+        pdf.cell(0, 10, safe_title, ln=True)
         pdf.ln(1)
         
-        # Job Details with clickable link: print "Click Here" in blue
+        # Job Details with clickable link
         pdf.set_font("Arial", '', 12)
         pdf.cell(30, 10, "Details:", ln=0)
         url = job.get('url', 'No URL')
@@ -336,11 +348,11 @@ def download_jobs():
         pdf.set_text_color(0, 0, 0)    # Reset to black
         
         # Job Summary
-        pdf.multi_cell(0, 8, f"Summary: {job.get('summary', '')}")
+        pdf.multi_cell(0, 8, f"Summary: {safe_summary}")
         pdf.ln(5)
     
-    # Get PDF data as a string, then encode and wrap in a BytesIO object
-    pdf_data = pdf.output(dest='S').encode('latin-1')
+    # Instead of passing a BytesIO to output(), use dest='S' to get a string
+    pdf_data = pdf.output(dest='S').encode('latin-1', 'replace')
     pdf_buffer = io.BytesIO(pdf_data)
     pdf_buffer.seek(0)
     
